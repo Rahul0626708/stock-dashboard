@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Stock Intelligence Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: Arial, sans-serif; background: #0a0a0a; color: #e0e0e0; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+
+    /* Navbar */
+    .navbar { background: #111; border-bottom: 2px solid #cc2222; padding: 10px 24px; display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }
+    .brand { font-size: 15px; font-weight: 900; letter-spacing: 4px; color: #fff; }
+    .brand span { color: #cc2222; }
+    .clock { font-size: 11px; color: #555; letter-spacing: 2px; }
+
+    /* Layout */
+    .container { display: flex; flex: 1; overflow: hidden; }
+
+    /* Sidebar */
+    .sidebar { width: 195px; background: #111; border-right: 1px solid #1e1e1e; padding: 14px 10px; display: flex; flex-direction: column; overflow-y: auto; flex-shrink: 0; }
+    .sidebar-label { font-size: 9px; font-weight: 700; letter-spacing: 3px; color: #444; text-transform: uppercase; margin-bottom: 10px; padding-left: 4px; }
+    .stock-btn { width: 100%; background: #1a1a1a; border: 1px solid #252525; color: #999; padding: 10px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 700; letter-spacing: 1px; text-align: left; margin-bottom: 6px; transition: all 0.18s; }
+    .stock-btn:hover { background: #242424; color: #fff; border-color: #333; }
+    .stock-btn.active { background: #cc2222; color: #fff; border-color: #cc2222; }
+    .stock-btn small { display: block; font-size: 9px; font-weight: 400; opacity: .65; margin-top: 2px; letter-spacing: 1px; }
+
+    /* Gainers */
+    .gainers-wrap { margin-top: auto; padding-top: 14px; border-top: 1px solid #1e1e1e; }
+    .gainers-label { font-size: 9px; font-weight: 700; letter-spacing: 3px; color: #22aa44; text-transform: uppercase; margin-bottom: 8px; }
+    .gainer-row { display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px solid #1a1a1a; font-size: 11px; }
+    .gainer-sym { font-weight: 700; color: #ccc; }
+    .gainer-pct { color: #22aa44; font-weight: 700; }
+
+    /* Main */
+    .main { flex: 1; padding: 18px 22px; display: flex; flex-direction: column; gap: 14px; overflow-y: auto; }
+
+    /* Header row */
+    .main-header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; }
+    .stock-title { font-size: 20px; font-weight: 900; letter-spacing: 3px; color: #fff; }
+    .stock-title span { font-size: 12px; font-weight: 400; color: #555; letter-spacing: 2px; margin-left: 10px; }
+    .filter-bar { display: flex; gap: 6px; }
+    .fbtn { padding: 5px 14px; background: #1a1a1a; color: #666; border: 1px solid #2a2a2a; border-radius: 4px; cursor: pointer; font-size: 11px; font-weight: 700; letter-spacing: 1px; transition: all .18s; }
+    .fbtn:hover { color: #fff; border-color: #444; }
+    .fbtn.active { background: #cc2222; color: #fff; border-color: #cc2222; }
+
+    /* Stats grid */
+    .stats { display: grid; grid-template-columns: repeat(4,1fr); gap: 10px; }
+    .stat { background: #111; border: 1px solid #1e1e1e; border-radius: 8px; padding: 13px 15px; }
+    .stat-lbl { font-size: 9px; font-weight: 700; letter-spacing: 2px; color: #444; text-transform: uppercase; margin-bottom: 6px; }
+    .stat-val { font-size: 19px; font-weight: 900; color: #fff; }
+    .stat-val.up { color: #22aa44; }
+    .stat-val.dn { color: #cc2222; }
+    .stat-sub { font-size: 10px; color: #333; margin-top: 3px; }
+
+    /* Chart */
+    .chart-wrap { background: #111; border: 1px solid #1e1e1e; border-radius: 10px; padding: 18px 20px; flex: 1; min-height: 260px; display: flex; flex-direction: column; }
+    .chart-lbl { font-size: 9px; font-weight: 700; letter-spacing: 3px; color: #333; text-transform: uppercase; margin-bottom: 12px; }
+    .chart-inner { flex: 1; position: relative; }
+
+    /* Empty state */
+    .empty { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; min-height: 220px; color: #252525; gap: 10px; }
+    .empty .ico { font-size: 44px; }
+    .empty .msg { font-size: 11px; letter-spacing: 3px; }
+
+    /* Loading */
+    .loading { display: none; text-align: center; padding: 16px; color: #333; font-size: 11px; letter-spacing: 3px; }
+  </style>
+</head>
+<body>
+
+<!-- NAVBAR -->
+<nav class="navbar">
+  <div class="brand">PROFESSIONAL<span>XTR</span> &nbsp; STOCKS</div>
+  <div class="clock" id="clock"></div>
+</nav>
+
+<div class="container">
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="sidebar-label">Companies</div>
+    <div id="company-list"></div>
+    <div class="gainers-wrap">
+      <div class="gainers-label">🏆 Top Gainers</div>
+      <div id="gainers"></div>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <main class="main">
+
+    <div class="main-header">
+      <div class="stock-title" id="title">SELECT A STOCK <span>← click from the left</span></div>
+      <div class="filter-bar">
+        <button class="fbtn active" onclick="setDays(30,this)">30D</button>
+        <button class="fbtn" onclick="setDays(90,this)">90D</button>
+        <button class="fbtn" onclick="setDays(252,this)">1Y</button>
+      </div>
+    </div>
+
+    <div class="stats">
+      <div class="stat"><div class="stat-lbl">52W High</div><div class="stat-val up" id="s1">—</div></div>
+      <div class="stat"><div class="stat-lbl">52W Low</div><div class="stat-val dn" id="s2">—</div></div>
+      <div class="stat"><div class="stat-lbl">Volatility</div><div class="stat-val" id="s3">—</div><div class="stat-sub">30-day rolling std</div></div>
+      <div class="stat"><div class="stat-lbl">Momentum</div><div class="stat-val" id="s4">—</div><div class="stat-sub" id="s4t"></div></div>
+    </div>
+
+    <div class="loading" id="loading">FETCHING DATA...</div>
+
+    <div class="chart-wrap">
+      <div class="chart-lbl">Closing Price &amp; 7-Day Moving Average</div>
+      <div class="chart-inner">
+        <div class="empty" id="empty">
+          <div class="ico">📈</div>
+          <div class="msg">SELECT A COMPANY FROM THE LEFT PANEL</div>
+        </div>
+        <canvas id="chart" style="display:none"></canvas>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<script>
+const API = 'http://localhost:8000';
+let chart = null, sym = null, days = 30;
+
+const NAMES = { TCS:'Tata Consultancy', INFY:'Infosys',
+                RELIANCE:'Reliance Ind.', HDFCBANK:'HDFC Bank', WIPRO:'Wipro' };
+
+// Live clock
+setInterval(() => {
+  document.getElementById('clock').textContent =
+    new Date().toLocaleTimeString('en-IN') + '  ·  NSE';
+}, 1000);
+
+// Load company buttons
+async function init() {
+  try {
+    const r = await fetch(`${API}/companies`);
+    const d = await r.json();
+    const el = document.getElementById('company-list');
+    d.companies.forEach(s => {
+      const b = document.createElement('button');
+      b.className = 'stock-btn';
+      b.innerHTML = `${s}<small>${NAMES[s]||''}</small>`;
+      b.onclick = () => load(s, b);
+      el.appendChild(b);
+    });
+  } catch {
+    document.getElementById('company-list').innerHTML =
+      '<p style="color:#cc2222;font-size:11px;padding:6px;">⚠️ API offline.<br>Start uvicorn first.</p>';
+  }
+
+  // Load top gainers
+  try {
+    const r = await fetch(`${API}/top-gainers`);
+    const d = await r.json();
+    document.getElementById('gainers').innerHTML =
+      d.top_gainers.map(g =>
+        `<div class="gainer-row">
+           <span class="gainer-sym">${g.symbol}</span>
+           <span class="gainer-pct">+${g.daily_return_pct}%</span>
+         </div>`
+      ).join('');
+  } catch {}
+}
+
+// Load stock data
+async function load(symbol, btn) {
+  sym = symbol;
+  document.querySelectorAll('.stock-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('title').innerHTML =
+    `${symbol} <span>${NAMES[symbol]||''}</span>`;
+  document.getElementById('loading').style.display = 'block';
+  document.getElementById('chart').style.display   = 'none';
+  document.getElementById('empty').style.display   = 'none';
+
+  try {
+    const [dr, sr] = await Promise.all([
+      fetch(`${API}/data/${symbol}?days=${days}`),
+      fetch(`${API}/summary/${symbol}`)
+    ]);
+    const sd = await dr.json();
+    const sm = await sr.json();
+
+    // Stats
+    document.getElementById('s1').textContent = '₹' + sm.high_52w.toLocaleString('en-IN');
+    document.getElementById('s2').textContent = '₹' + sm.low_52w.toLocaleString('en-IN');
+    document.getElementById('s3').textContent = (sm.volatility_score * 100).toFixed(2) + '%';
+    const m = sm.momentum_index;
+    const s4 = document.getElementById('s4');
+    s4.textContent   = m.toFixed(1);
+    s4.className     = 'stat-val ' + (m >= 100 ? 'up' : 'dn');
+    document.getElementById('s4t').textContent = m >= 100 ? '📈 Bullish' : '📉 Bearish';
+
+    // Chart
+    drawChart(sd.data, symbol);
+
+  } catch(e) {
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('empty').style.display   = 'flex';
+    alert('Could not load data. Is uvicorn running at localhost:8000?');
+  }
+}
+
+function drawChart(data, symbol) {
+  document.getElementById('loading').style.display = 'none';
+  document.getElementById('chart').style.display   = 'block';
+
+  const labels = data.map(d => (d.date||'').slice(0,10));
+  const closes = data.map(d => +parseFloat(d.close).toFixed(2));
+  const ma7    = data.map(d => d.ma_7 ? +parseFloat(d.ma_7).toFixed(2) : null);
+
+  if (chart) chart.destroy();
+  chart = new Chart(document.getElementById('chart'), {
+    type: 'line',
+    data: { labels, datasets: [
+      { label: `${symbol} Close`, data: closes,
+        borderColor:'#cc2222', backgroundColor:'rgba(204,34,34,0.07)',
+        fill:true, tension:0.3, pointRadius:0, borderWidth:2 },
+      { label:'7-Day MA', data: ma7,
+        borderColor:'#4488ff', backgroundColor:'transparent',
+        fill:false, tension:0.3, pointRadius:0, borderWidth:1.5,
+        borderDash:[5,3] }
+    ]},
+    options: {
+      responsive:true, maintainAspectRatio:false,
+      interaction:{ mode:'index', intersect:false },
+      plugins:{
+        legend:{ labels:{ color:'#666', font:{ size:11 } } },
+        tooltip:{ backgroundColor:'#1a1a1a', borderColor:'#333', borderWidth:1,
+                  titleColor:'#fff', bodyColor:'#aaa' }
+      },
+      scales:{
+        x:{ ticks:{ color:'#444', maxTicksLimit:7, font:{size:10} }, grid:{ color:'#181818' } },
+        y:{ ticks:{ color:'#444', font:{size:10},
+                    callback: v => '₹'+parseFloat(v).toLocaleString('en-IN') },
+            grid:{ color:'#181818' } }
+      }
+    }
+  });
+}
+
+function setDays(d, btn) {
+  days = d;
+  document.querySelectorAll('.fbtn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  if (sym) {
+    const ab = document.querySelector('.stock-btn.active');
+    if (ab) load(sym, ab);
+  }
+}
+
+init();
+</script>
+</body>
+</html>
