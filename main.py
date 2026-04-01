@@ -142,7 +142,6 @@ def top_gainers():
 @app.get("/", response_class=HTMLResponse, include_in_schema=False)
 def root():
     return """<meta http-equiv="refresh" content="0;url=/docs">"""
-# ── BONUS 1: GET /correlation ──────────────────────────────────
 @app.get("/correlation", summary="Pearson correlation matrix between all stocks")
 def get_correlation():
     """
@@ -159,8 +158,6 @@ def get_correlation():
         "note": "1.0=perfect match  0=no relation  -1.0=opposite",
         "matrix": corr.to_dict()
     }
-
-# ── BONUS 2: GET /predict/{symbol} ─────────────────────────────
 @app.get("/predict/{symbol}", summary="7-day price prediction using ML")
 def predict_price(symbol: str):
     """
